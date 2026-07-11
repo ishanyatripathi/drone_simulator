@@ -31,12 +31,33 @@ interface GestureInputManagerCallbacks {
 
 // Overridable via VITE_GESTURE_WS_URL (see .env.example) for cases where
 // the gesture engine runs on a different host/port than the default local
-// dev setup. Falls back to localhost:8000, matching `gesture-engine`'s
-// default `python run.py` port — the gesture engine needs local webcam
-// access, so it's expected to run on the same machine as the browser
-// viewing this app, whether that app itself is served locally or from a
-// Vercel deployment.
-const DEFAULT_URL = import.meta.env.VITE_GESTURE_WS_URL || 'ws://localhost:8000/ws/gestures';
+// dev setup. In production, the browser will try the same host by default
+// so the gesture backend can be deployed behind the same origin or a proxy.
+function resolveGestureSocketUrl(explicitUrl?: string): string {
+  if (explicitUrl) {
+    return explicitUrl;
+  }
+
+  if (import.meta.env.VITE_GESTURE_WS_URL) {
+    return import.meta.env.VITE_GESTURE_WS_URL;
+  }
+
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+
+    if (isLocalHost) {
+      return `${protocol === 'https:' ? 'wss' : 'ws'}://localhost:8000/ws/gestures`;
+    }
+
+    const wsProtocol = protocol === 'https:' ? 'wss' : 'ws';
+    return `${wsProtocol}://${window.location.host}/ws/gestures`;
+  }
+
+  return 'ws://localhost:8000/ws/gestures';
+}
+
+const DEFAULT_URL = resolveGestureSocketUrl();
 
 /**
  * GestureInputManager
@@ -107,9 +128,9 @@ export class GestureInputManager {
         this.handleCommand(envelope.payload);
         break;
       case 'status':
+        break;
       case 'error':
-        // Connection lifecycle is already surfaced via onConnectionStateChange;
-        // these are informational and safe to ignore for now.
+        this.setState('error');
         break;
     }
   }

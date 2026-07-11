@@ -48,7 +48,15 @@ def _to_hand_detection(hand) -> HandDetection:
 @router.websocket("/ws/gestures")
 async def gesture_socket(websocket: WebSocket, camera: int | None = Query(default=None)):
     await websocket.accept()
-    session = session_manager.create(camera_index=camera)
+
+    try:
+        session = session_manager.create(camera_index=camera)
+    except RuntimeError as exc:
+        logger.exception("session setup failed for camera=%s", camera)
+        await websocket.send_json({"type": "error", "payload": {"message": str(exc)}})
+        await websocket.close(code=1011)
+        return
+
     logger.info(
         "session %s opened (camera=%s, active=%s)",
         session.session_id,

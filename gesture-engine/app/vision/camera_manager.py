@@ -10,6 +10,7 @@ websocket session (see `session/session_manager.py`) is handed a
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -48,16 +49,35 @@ class CameraStream:
         with self._lock:
             if self._cap is not None:
                 return
-            cap = cv2.VideoCapture(self.camera_index)
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.frame_width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.frame_height)
-            cap.set(cv2.CAP_PROP_FPS, settings.target_fps)
-            if not cap.isOpened():
-                raise RuntimeError(f"Unable to open camera index {self.camera_index}")
-            self._cap = cap
-            self._running = True
-            self._thread = threading.Thread(target=self._read_loop, daemon=True)
-            self._thread.start()
+
+            backend = cv2.CAP_DSHOW if os.name == "nt" else cv2.CAP_ANY
+            for candidate in self._candidate_indexes():
+                cap = cv2.VideoCapture(candidate, backend)
+                if not cap.isOpened():
+                    cap.release()
+                    continue
+
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.frame_width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.frame_height)
+                cap.set(cv2.CAP_PROP_FPS, settings.target_fps)
+
+                if not cap.isOpened():
+                    cap.release()
+                    continue
+
+                self.camera_index = candidate
+                self._cap = cap
+                self._running = True
+                self._thread = threading.Thread(target=self._read_loop, daemon=True)
+                self._thread.start()
+                return
+
+            raise RuntimeError(f"Unable to open camera index {self.camera_index}")
+
+    def _candidate_indexes(self) -> list[int]:
+        if self.camera_index is None:
+            return [0, 1, 2, 3, 4]
+        return [self.camera_index, 0, 1, 2, 3, 4]
 
     def _read_loop(self) -> None:
         assert self._cap is not None
@@ -116,9 +136,10 @@ class CameraManager:
     @staticmethod
     def list_available(max_probe: int = 4) -> list[CameraInfo]:
         """Best-effort enumeration of camera devices for a UI picker."""
+        backend = cv2.CAP_DSHOW if os.name == "nt" else cv2.CAP_ANY
         found: list[CameraInfo] = []
         for idx in range(max_probe):
-            cap = cv2.VideoCapture(idx)
+            cap = cv2.VideoCapture(idx, backend)
             is_open = cap.isOpened()
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) if is_open else 0
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) if is_open else 0
