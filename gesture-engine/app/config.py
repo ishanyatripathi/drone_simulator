@@ -33,16 +33,16 @@ class Settings(BaseSettings):
 
     # --- Safety / stability (per spec) ---
     # A gesture's classifier confidence must exceed this to even be considered.
-    min_gesture_confidence: float = 0.95
+    min_gesture_confidence: float = 0.65
     # The SAME gesture must be observed continuously for this long before
     # it is confirmed and emitted as a command.
-    confirmation_window_ms: int = 500
-    # After a command is emitted, no new command will be emitted for this
-    # long, to prevent rapid-fire accidental re-triggers.
-    cooldown_ms: int = 300
+    confirmation_window_ms: int = 180
+    # After a command is emitted, repeat it again only after this interval
+    # while the same gesture remains held, so recognition feels continuous.
+    repeat_interval_ms: int = 40
     # If tracking is lost or the gesture changes, how much jitter (in
     # frames) we tolerate before resetting the confirmation timer.
-    max_dropped_frames: int = 3
+    max_dropped_frames: int = 5
 
     # --- Static pose geometry (current gesture vocabulary) ---
     # How close a thumb's pointing angle must be to vertical (±90°) to count

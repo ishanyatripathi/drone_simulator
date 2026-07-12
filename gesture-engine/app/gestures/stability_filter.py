@@ -54,15 +54,12 @@ class StabilityFilter:
 
         if self.last_emit_time is not None:
             since_last_ms = (t - self.last_emit_time) * 1000
-            if since_last_ms < settings.cooldown_ms:
+            if since_last_ms < settings.repeat_interval_ms:
                 return None
 
         self.last_emit_time = t
-        # Re-arm: the SAME gesture must be freshly re-confirmed after the
-        # cooldown before firing again, which naturally throttles a held
-        # gesture to one command roughly every (confirmation + cooldown).
-        self.candidate_start = t
-
+        # Keep the gesture active once confirmed so a held pose continues to
+        # emit commands smoothly instead of stopping after a single trigger.
         return gesture_id, confidence
 
     def _reset_candidate(self) -> None:
